@@ -82,6 +82,7 @@ Copy the API token provided by BotFather and set it as TG_API_TOKEN
 # Ideas 
 
 🔥 https://github.com/FebVeg/TGRS
+
 🔥 https://github.com/gunzf0x/BypassAMSI_PSRevshell
 
 ⚠️ Legal & Ethical Notice
