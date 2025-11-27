@@ -77,7 +77,9 @@ How to create a Telegram Bot and obtain credentials:
 
 🎥 https://www.youtube.com/watch?v=UQrcOj63S2o - Tutorial to create Bot
 
+# About Author
 
+Build this as an intern , to demonstrate my understanding of using apis for vulnerability assesment and penetration testing .
 # Ideas 
 
 🔥 https://github.com/FebVeg/TGRS
