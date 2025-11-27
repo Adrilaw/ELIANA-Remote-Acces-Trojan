@@ -71,13 +71,12 @@ Before using this script, you must update the Telegram credentials in the script
 $global:TG_CHAT_ID = "your-user-id"         # Replace with your Telegram Chat ID  
 $global:TG_API_TOKEN = "your-bots-api-key"  # Replace with your Telegram Bot API Token  
 
-How to create a Telegram Bot and obtain credentials
+How to create a Telegram Bot and obtain credentials:
 
 🎥 https://www.youtube.com/watch?v=iq8y9niOe4Y - Tutorial to get user id
 
 🎥 https://www.youtube.com/watch?v=UQrcOj63S2o - Tutorial to create Bot
 
-Copy the API token provided by BotFather and set it as TG_API_TOKEN
 
 # Ideas 
 
