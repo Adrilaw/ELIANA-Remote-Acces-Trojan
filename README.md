@@ -80,12 +80,14 @@ How to create a Telegram Bot and obtain credentials:
 # ✍🏼 About Author
 
 I'm Dodin Mel-Adrien also know as Kidpentester/Adrilaw I built this as an intern , to demonstrate the use of telegram to gain access a windows machine without being detected by antivirus software , this tool was designed explicitly for vulnerability assesment and penetration testing .
-# Ceedits
+# Credits
 
 🔥 https://github.com/FebVeg/TGRS
 
 🔥 https://github.com/gunzf0x/BypassAMSI_PSRevshell
 
+# License
+ELIANA-Remote-Acces-Trojan is licensed under the [GNU General Public License](LICENSE) and the [ELIANA-Remote-Acces-Trojan Commercial License](C-LICENSE)- see the LICENSE file for details.
 
 ⚠️ Legal & Ethical Notice
 
