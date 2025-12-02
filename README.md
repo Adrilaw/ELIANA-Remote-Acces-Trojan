@@ -10,7 +10,7 @@ This tool enables security testers with explicit permission to remotely execute 
 
 # Open the PowerShell file that was uploaded (ELIANA.ps1).
 
-# Inside the script, you will see those fields:
+# Inside the script, you will see those fields you need to change it to your telegram id and bot api key:
 
 `$telegram_id, $api_token    = "your_user_id_here", "your_api_token_here"`
 
